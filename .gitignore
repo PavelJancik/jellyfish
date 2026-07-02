@@ -1,0 +1,50 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.env
+.env.*
+
+# Backup and temp files
+backup/
+*.bak
+*.swp
+*~
+
+# Media project files and generated audio/video peaks
+media_source_projects/**/peaks/
+media_source_projects/**/Media/peaks/
+*.reapeaks
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime files
+*.log
+*.tmp
+
+# Python environment and cache
+pip-wheel-metadata/
+.python-version
+
+# Build artifacts
+build/
+dist/
+
+# Other generated files
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore various IDE and tooling files
+*.iml
