@@ -25,14 +25,6 @@ PS-like controller support.
 | `map_screen.py` | Spot-selection map screen |
 | `subtitle_overlay.py` | Fading subtitle rendering for intro/outro videos |
 
-## Assets
-
-The game expects `imgs/`, `audio/`, `fonts/`, and `video/` folders with the
-corresponding sprites, sounds, fonts, and cutscenes (not included in this
-listing). See the individual modules' docstrings for the expected file
-layout (e.g. `imgs/water_<animal>_front.png`, `imgs/fishes/`,
-`imgs/corals/`, `audio/background_music/`).
-
 ## License
 
 See `LICENCE.md` for license terms.
