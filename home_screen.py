@@ -358,9 +358,6 @@ class HomeScreen:
         # --- Buttons ---
         self._draw_buttons(surface)
 
-        # --- Hint ---
-        self._draw_hint(surface)
-
         # --- Controller status ---
         self._draw_controller_status(surface)
 
@@ -462,17 +459,6 @@ class HomeScreen:
             label = self._btn_font.render(btn["label"], True, text_col)
             label_rect = label.get_rect(center=rect.center)
             surface.blit(label, label_rect)
-
-    def _draw_hint(self, surface: pygame.Surface) -> None:
-        if self.joystick is not None and pygame.joystick.get_count() > 0:
-            hint_text = "Press A to confirm"
-        else:
-            hint_text = "Press Enter to confirm"
-
-        hint_y = self.screen_h - int(self.screen_h * 0.06)
-        surf = self._hint_font.render(hint_text, True, (60, 120, 180))
-        rect = surf.get_rect(centerx=self.screen_w // 2, top=hint_y)
-        surface.blit(surf, rect)
 
     def _draw_controller_status(self, surface: pygame.Surface) -> None:
         """Draw the controller icon and connection status in the bottom-right corner."""

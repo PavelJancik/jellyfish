@@ -306,7 +306,7 @@ def load_font(size: int, path: str = 'fonts/DynaPuff/DynaPuff-VariableFont_wdth,
 
 class BackgroundMusic:
     """
-    Plays background music from the audio/background_music/ folder.
+    Plays background music from the audio/OST/ folder.
 
     Files are played in random order on a loop.
     Supports smooth fade-in / fade-out when starting and stopping.
@@ -335,7 +335,7 @@ class BackgroundMusic:
 
     def __init__(
         self,
-        folder: str = "audio/background_music",
+        folder: str = "audio/OST",
         volume: float = 0.5,
         fade_speed: float = 0.4,
     ) -> None:

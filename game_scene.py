@@ -186,7 +186,7 @@ class GameScene:
 
         Loads:
           • audio/bubbles/   – bubble sounds on interaction (channel 6)
-          • audio/turtle.mp3, manta.mp3, whale.mp3, final.mp3 – NPC speech (channel 7)
+          • audio/speech/turtle.mp3, manta.mp3, whale.mp3, final.mp3 – NPC speech (channel 7)
         """
         # --- Bubble sounds ---
         folder = "audio/bubbles"
@@ -205,7 +205,7 @@ class GameScene:
         # --- NPC speech ---
         cls._speech_cache = {}
         for mission in ("turtle", "manta", "whale", "final"):
-            path = f"audio/{mission}.mp3"
+            path = f"audio/speech/{mission}.mp3"
             if os.path.isfile(path):
                 try:
                     snd = pygame.mixer.Sound(path)
@@ -919,6 +919,29 @@ class GameScene:
             self._outro_playing   = False
             self._outro_video_done = True
 
+    def stop_outro(self) -> None:
+        """
+        Immediately stops the outro video and fully resets its state.
+        Called by main.py when the player skips the outro.
+
+        This must clear the same flags draw_outro() clears on a natural
+        finish (_outro_video, _outro_playing, _outro_video_done). Otherwise
+        _outro_playing stays True, and the very next time the final scene's
+        update()/draw() runs (e.g. right after the player presses Play on
+        the home screen) main.py sees outro_playing still True and bounces
+        straight back into the 'outro' state for one extra cycle -- which
+        is what made a skip need a second Play press to actually start
+        the game.
+        """
+        if self._outro_video is not None:
+            try:
+                self._outro_video.stop()
+            except Exception:
+                pass
+        self._outro_video = None
+        self._outro_playing = False
+        self._outro_video_done = True
+
     # ------------------------------------------------------------------
     # HUD
     # ------------------------------------------------------------------
@@ -1048,6 +1071,9 @@ class GameScene:
 
         if self._mission_complete:
             title_text  = "Ocean Cleaned!"
+            title_color = (80, 220, 120)
+        elif active == 0:
+            title_text  = "Good job! You are the true hero!"
             title_color = (80, 220, 120)
         else:
             title_text  = f"Trash in ocean: {active}"

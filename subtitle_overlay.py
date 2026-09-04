@@ -123,29 +123,42 @@ class SubtitleOverlay:
         font  = self._get_font(cue.font_size or self.DEFAULT_FONT_SIZE)
         color = cue.color or self.DEFAULT_COLOR
 
-        # Insert spaces for the letter-spacing effect
-        spaced_text = (" " * self.LETTER_SPACING_FACTOR).join(cue.text.upper())
+        # Support multi-line text: split on \n, each line gets its own
+        # spacing + shadow, and each line is centered independently.
+        raw_lines = cue.text.split("\n")
+        spaced_lines = [
+            (" " * self.LETTER_SPACING_FACTOR).join(line.strip().upper())
+            for line in raw_lines
+        ]
 
-        # Render text to a temp surface (needed for alpha)
-        text_surf = font.render(spaced_text, True, color)
-        tw, th    = text_surf.get_size()
+        # Pre-render every line once so we know each one's size
+        line_surfs   = [font.render(line, True, color) for line in spaced_lines]
+        shadow_surfs = [font.render(line, True, self.SHADOW_COLOR) for line in spaced_lines]
 
-        # Position – centered horizontally, vertical per cue.y_position
-        x = (self.screen_w - tw) // 2
-        y = int(self.screen_h * cue.y_position) - th // 2
+        line_heights = [s.get_height() for s in line_surfs]
+        total_h      = sum(line_heights)
 
-        # Shadow – multiple layers for a strong drop-shadow effect ────────────
-        shadow_surf = font.render(spaced_text, True, self.SHADOW_COLOR)
-        for i in range(1, self.SHADOW_BLUR_PASSES + 1):
-            layer = shadow_surf.copy()
-            layer.set_alpha(alpha // (i + 1))
-            surface.blit(layer,
-                         (x + self.SHADOW_OFFSET[0] * i,
-                          y + self.SHADOW_OFFSET[1] * i))
+        # Block top position – vertical anchor stays at cue.y_position,
+        # same as before for single-line cues.
+        y = int(self.screen_h * cue.y_position) - total_h // 2
 
-        # Text ────────────────────────────────────────────────────────────────
-        text_surf.set_alpha(alpha)
-        surface.blit(text_surf, (x, y))
+        for text_surf, shadow_surf, line_h in zip(line_surfs, shadow_surfs, line_heights):
+            tw = text_surf.get_width()
+            x  = (self.screen_w - tw) // 2
+
+            # Shadow – multiple layers for a strong drop-shadow effect
+            for i in range(1, self.SHADOW_BLUR_PASSES + 1):
+                layer = shadow_surf.copy()
+                layer.set_alpha(alpha // (i + 1))
+                surface.blit(layer,
+                             (x + self.SHADOW_OFFSET[0] * i,
+                              y + self.SHADOW_OFFSET[1] * i))
+
+            # Text
+            text_surf.set_alpha(alpha)
+            surface.blit(text_surf, (x, y))
+
+            y += line_h
 
     # ── internal ─────────────────────────────────────────────────────────────
 

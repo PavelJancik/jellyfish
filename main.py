@@ -33,7 +33,7 @@ pygame.display.set_icon(icon)
 clock = pygame.time.Clock()
 
 # Background music
-bg_music = BackgroundMusic(volume=0.25)
+bg_music = BackgroundMusic(volume=0.35)
 
 # Level spot names
 SPOT_TURTLE = "turtle"
@@ -128,21 +128,26 @@ intro_subtitles.load([
 # Outro subtitles (final video)
 _outro_quote = (
     '"Unless someone like you cares a whole awful lot,\n'
-    '    nothing is going to get better. It\'s not."\n\n'
-    '                     Dr. Seuss, The Lorax'
+    'nothing is going to get better. It\'s not."\n\n'
+    'Dr. Seuss, The Lorax'
 )
 _music = (
     'Moana 2 - My Wish For You (Innocent Warrior)\n\n'
-    '          Frozen Planet II - Crisis\n\n'    
-    '  KPop Demon Hunters - Free [instrumental]\n\n'
-    '             A Jelly’s Odyssey OST\n\n' 
-
+    'Frozen Planet II - Crisis\n\n'
+    'KPop Demon Hunters - Free [instrumental]\n\n'
+)
+_ost = (
+    '01 - Eel\n\n'
+    '02 - Shallows\n\n'
+    '03 - Atolls\n\n'
+    '04 - Echoes\n\n'
+    '05 - Flow\n\n'
 )
 outro_subtitles_h1 = SubtitleOverlay(screen_w, screen_h)
 outro_subtitles_h1.load([
     SubtitleCue(start=60.0, end=65.0, text="A Jelly’s Odyssey", font_size=70),
-    SubtitleCue(start=65.0, end=70.0, text="Music", y_position=0.4),
-    SubtitleCue(start=70.0, end=75.0, text="XXX", y_position=0.4),
+    SubtitleCue(start=65.0, end=70.0, text="Music", y_position=0.42),
+    SubtitleCue(start=70.0, end=75.0, text="Soundtrack", y_position=0.38),
     SubtitleCue(start=75.0, end=80.0, text="Narrated by"),   
     SubtitleCue(start=80.0, end=85.0, text="Created by"),    
 ])
@@ -151,7 +156,7 @@ h2_size = 20
 outro_subtitles_h2.load([
     SubtitleCue(start=60.0, end=65.0, text="The Last Hope", font_size=h2_size, y_position=0.6),
     SubtitleCue(start=65.0, end=70.0, text=_music, font_size=h2_size,  y_position=0.55),
-    SubtitleCue(start=75.0, end=75.0, text='', font_size=h2_size,  y_position=0.55),
+    SubtitleCue(start=70.0, end=75.0, text=_ost, font_size=h2_size,  y_position=0.55),
     SubtitleCue(start=75.0, end=80.0, text="David Attenborough", font_size=h2_size, y_position=0.55),
     SubtitleCue(start=80.0, end=85.0, text="Pavel Jančík, 2026", font_size=h2_size, y_position=0.55),
     SubtitleCue(start=85.0, end=110.0, text=_outro_quote, font_size=h2_size),
@@ -160,12 +165,52 @@ outro_subtitles_h2.load([
 
 outro_subtitles_started = False   # True once reset() has been called for the outro
 outro_skip_hold = SkipHoldIndicator(screen_w, screen_h, hold_time=1.0)
+game_completed = False   # True once the final outro video has played (skipped or in full) -> map/esc re-enabled
 # Joystick HUD
 controller_hud = ControllerHUD(screen_w, screen_h, joystick)
 
 state = "home"
 while True:
     dt = clock.tick(60) / 1000
+
+    # ── Outro completion check ──────────────────────────────────────────────
+    # Checked BEFORE this frame's events are pulled from the queue. If this
+    # lived only in the render section (after the event loop), any input that
+    # arrived in the same frame the outro finishes would still be dispatched
+    # under the stale 'outro' state and get silently dropped (no handler
+    # processes keyboard/joystick input for that state) — forcing a second,
+    # separate press once the state had actually become 'home'. Resolving the
+    # transition first means this frame's events are always routed correctly.
+    if state == 'outro':
+        _keys_now   = pygame.key.get_pressed()
+        _enter_held = _keys_now[pygame.K_RETURN]
+        _btn0_held  = joystick.get_button(0) if joystick else False
+        _outro_skipped = outro_skip_hold.update(_enter_held or _btn0_held, dt)
+
+        if _outro_skipped or game_scene_final.outro_video_done:
+            if _outro_skipped:
+                # Safely stop the outro video if game_scene supports it
+                if hasattr(game_scene_final, 'stop_outro'):
+                    game_scene_final.stop_outro()
+                elif hasattr(game_scene_final, '_outro_video') and game_scene_final._outro_video:
+                    try:
+                        game_scene_final._outro_video.stop()
+                    except Exception:
+                        pass
+                elif hasattr(game_scene_final, 'outro_video') and game_scene_final.outro_video:
+                    try:
+                        game_scene_final.outro_video.stop()
+                    except Exception:
+                        pass
+            outro_skip_hold.reset()
+            outro_subtitles_started = False
+            game_completed = True   # final video has played -> re-enable map/esc controls
+            state = 'home'
+            outro_fade._alpha = 255.0
+            outro_fade._dir = -1
+            outro_fade._done = False
+            outro_fade._fading_out = False
+            outro_fade._elapsed = 0.0
 
     for event in pygame.event.get():
 
@@ -205,9 +250,9 @@ while True:
 
             # GAME - keyboard
             elif state == 'game':
-                if event.key == pygame.K_m and map_spot != SPOT_FINAL:
+                if event.key == pygame.K_m and (map_spot != SPOT_FINAL or game_completed):
                     state = 'map'
-                if event.key == pygame.K_ESCAPE and map_spot != SPOT_FINAL:
+                if event.key == pygame.K_ESCAPE and (map_spot != SPOT_FINAL or game_completed):
                     state = 'home'
                 if event.key == pygame.K_f:
                     # F -> go to final (only once turtle+manta+whale are complete)
@@ -256,7 +301,7 @@ while True:
             # GAME – Joystick
             elif state == 'game':
                 controller_hud.handle_button_press(btn)
-                if btn == 3 and map_spot != SPOT_FINAL:   # Y / Triangle → mapa
+                if btn == 3 and (map_spot != SPOT_FINAL or game_completed):   # Y / Triangle → mapa
                     state = 'map'
                 elif btn == 2:                # button 2 -> start the final mission
                     all_done = (
@@ -266,7 +311,7 @@ while True:
                     )
                     if all_done and map_spot != SPOT_FINAL:
                         fade.start(SPOT_FINAL)
-                elif btn == 8 and map_spot != SPOT_FINAL:  # Select / Share -> home
+                elif btn == 8 and (map_spot != SPOT_FINAL or game_completed):  # Select / Share -> home
                     state = 'home'
                 elif btn == 4:                # button 4 -> confirm challenge
                     controller_hud.handle_confirm()
@@ -408,36 +453,9 @@ while True:
         outro_subtitles_h2.update(dt)
         outro_subtitles_h2.draw(screen)
 
-        # ── Hold-to-skip outro ────────────────────────────────────────────
-        keys = pygame.key.get_pressed()
-        _enter_held = keys[pygame.K_RETURN]
-        _btn0_held  = joystick.get_button(0) if joystick else False
-        _outro_skipped = outro_skip_hold.update(_enter_held or _btn0_held, dt)
+        # Hold-to-skip progress indicator (the hold itself is tracked and
+        # resolved at the top of the loop, before events are processed)
         outro_skip_hold.draw(screen)
-
-        if _outro_skipped or game_scene_final.outro_video_done:
-            if _outro_skipped:
-                # Safely stop the outro video if game_scene supports it
-                if hasattr(game_scene_final, 'stop_outro'):
-                    game_scene_final.stop_outro()
-                elif hasattr(game_scene_final, '_outro_video') and game_scene_final._outro_video:
-                    try:
-                        game_scene_final._outro_video.stop()
-                    except Exception:
-                        pass
-                elif hasattr(game_scene_final, 'outro_video') and game_scene_final.outro_video:
-                    try:
-                        game_scene_final.outro_video.stop()
-                    except Exception:
-                        pass
-            outro_skip_hold.reset()
-            outro_subtitles_started = False
-            state = 'home'
-            outro_fade._alpha = 255.0
-            outro_fade._dir = -1
-            outro_fade._done = False
-            outro_fade._fading_out = False
-            outro_fade._elapsed = 0.0
 
     # MAP - Rendering
     elif state == 'map':
