@@ -47,7 +47,7 @@ m_frames = load_frames(screen, SPOT_MANTA)
 w_frames = load_frames(screen, SPOT_WHALE)
 f_frames = m_frames
 frames = t_frames
-map_spot = SPOT_TURTLE
+map_spot = SPOT_FINAL
 current_frame = 0
 frame_delay = 5
 counter = 0
@@ -465,8 +465,10 @@ while True:
 
     # GAME - Rendering
     elif state == 'game':
-        # Background music: plays everywhere except the final mission (which has its own audio on channel 5)
-        if map_spot == SPOT_FINAL and (game_scene_final.mission_active or game_scene_final.mission_complete):
+        # Background music: plays everywhere except the final mission (which has its own audio on channel 5).
+        # Once the final outro has already played (game_completed), the final mission's own music no
+        # longer applies -> bg_music should just keep playing continuously, same as before the final scene.
+        if not game_completed and map_spot == SPOT_FINAL and (game_scene_final.mission_active or game_scene_final.mission_complete):
             bg_music.stop()   # smooth fade-out; final music runs on channel 5
         else:
             bg_music.play()
