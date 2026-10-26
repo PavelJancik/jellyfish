@@ -178,6 +178,9 @@ class GameScene:
     - whale  : no mission
     """
 
+    # True once the "can interact" controller hint has been shown (shared by all scenes)
+    _can_hint_shown: bool = False
+
     @classmethod
     def preload_audio(cls) -> None:
         """
@@ -301,6 +304,27 @@ class GameScene:
         else:
             self._can_interact_img = None
         self._interact_angle: float = 0.0   # current icon rotation angle (degrees)
+
+        # --- Controller hints (PNG in the top-right corner) ---
+        # Scene hint: shown at the 1st interaction, hidden at the 2nd one.
+        # Map hint (turtle only): shown once the mission is complete, hidden once the map is opened.
+        self._interaction_count: int = 0
+        self._hint_visible: bool = False
+        self._map_hint_visible: bool = False
+        self._has_controller: bool = False     # set every frame in update()
+        self._can_hint_visible: bool = False
+        self._can_hint_img = self._load_hint_image(["imgs/controller-can_interact.png"])
+        self._hint_timer: float = 0.0          # seconds the current hint has been visible
+        self.HINT_VISIBLE_TIME = 4.0           # seconds before the fade-out starts
+        self.HINT_FADE_TIME = 1.0              # fade-out duration (seconds)
+        _hint_candidates = {
+            "turtle": ["imgs/controller-turtle.png"],
+            "whale":  ["imgs/controller-whale.png"],
+            # the file name may have been typed with a typo -> try both variants
+            "manta":  ["imgs/controller-manta.png", "imgs/contorller-panta.png"],
+        }.get(animal, [])
+        self._hint_img = self._load_hint_image(_hint_candidates)
+        self._map_hint_img = self._load_hint_image(["imgs/controller-map.png"]) if animal == "turtle" else None
         # Final mission – timers
         self._music_timer:  float = 0.0   # time since music started
         self._trash_timer:  float = 0.0   # countdown to the next trash spawn
@@ -321,6 +345,44 @@ class GameScene:
                 self._final_music_sound = None
         else:
             self._final_music_sound = None
+
+    def _load_hint_image(self, candidates: list[str]) -> pygame.Surface | None:
+        """Loads the first existing hint PNG and scales it to fit the top-right corner."""
+        for path in candidates:
+            if os.path.isfile(path):
+                img = pygame.image.load(path).convert_alpha()
+                max_h = int(self.screen_h * 0.30)
+                max_w = int(self.screen_w * 0.30)
+                k = min(max_w / img.get_width(), max_h / img.get_height(), 1.0) * 0.75   # 1/4 smaller
+                if k < 1.0:
+                    img = pygame.transform.smoothscale(
+                        img, (max(1, int(img.get_width() * k)), max(1, int(img.get_height() * k)))
+                    )
+                return img
+        return None
+
+    def dismiss_map_hint(self) -> None:
+        """Hides the map hint (call from main.py once the map has been opened)."""
+        self._map_hint_visible = False
+
+    def _draw_hints(self, surface: pygame.Surface) -> None:
+        """Draws the active hint image in the top-right corner."""
+        if not self._has_controller:
+            return
+        margin = int(self.screen_h * 0.03)
+        img = None
+        if self._map_hint_visible:
+            img = self._map_hint_img
+        elif self._hint_visible:
+            img = self._hint_img
+        elif self._can_hint_visible:
+            img = self._can_hint_img
+        if img is not None:
+            fade_t = self._hint_timer - self.HINT_VISIBLE_TIME
+            alpha = 255 if fade_t <= 0 else int(255 * max(0.0, 1.0 - fade_t / self.HINT_FADE_TIME))
+            img = img.copy()
+            img.set_alpha(alpha)
+            surface.blit(img, (self.screen_w - img.get_width() - margin, margin))
 
     def start_interact_challenge(self, controller_hud, joystick=None) -> bool:
         """
@@ -413,6 +475,14 @@ class GameScene:
                 controller_hud.start_dpad_game(on_complete=_on_success, steps=3, step_time=2.0)
         else:
             controller_hud.start_joystick_game(on_complete=_on_success)
+
+        # Controller hint: shown only at the 1st interaction; it then stays visible
+        # for HINT_VISIBLE_TIME (+ fade-out) regardless of how the interaction ends
+        self._interaction_count += 1
+        if self._interaction_count == 1:
+            self._can_hint_visible = False
+            self._hint_visible = True
+            self._hint_timer = 0.0
 
         # Store references to the challenge target and HUD for auto-cancel on walk-away
         self._challenge_hud = controller_hud
@@ -538,6 +608,11 @@ class GameScene:
         if done:
             self._mission_active = False
             self._mission_complete = True
+            if self._mission_type == "turtle" and self._map_hint_img is not None:
+                self._hint_visible = False        # replace the controller hint with the map hint
+                self._can_hint_visible = False
+                self._map_hint_visible = True
+                self._hint_timer = 0.0
 
     # ------------------------------------------------------------------
     # Helper methods
@@ -632,6 +707,19 @@ class GameScene:
         can_start_mission : True if no other scene currently has
                             an active mission – passed in by main.py
         """
+        # Hints are shown only while a controller is actually connected
+        # (the Joystick object survives unplugging, so also check pygame's device count)
+        try:
+            self._has_controller = joystick is not None and pygame.joystick.get_count() > 0 and joystick.get_init()
+        except Exception:
+            self._has_controller = False
+        # Hint timer: visible for HINT_VISIBLE_TIME, then fades out and disappears
+        if self._hint_visible or self._map_hint_visible or self._can_hint_visible:
+            self._hint_timer += dt
+            if self._hint_timer >= self.HINT_VISIBLE_TIME + self.HINT_FADE_TIME:
+                self._hint_visible = False
+                self._map_hint_visible = False
+                self._can_hint_visible = False
 
         self.npc.sync_with_background(self.bg_x)
         self.npc.update(dt)
@@ -895,6 +983,9 @@ class GameScene:
         elif self._mission_active or self._mission_complete:
             self._draw_mission_hud(surface)
 
+        # Controller hints (top-right)
+        self._draw_hints(surface)
+
         # Fade-out to black before the outro video starts
         if self._outro_fade is not None and not self._outro_fade_done:
             alpha = int(self._outro_fade._alpha)
@@ -962,6 +1053,11 @@ class GameScene:
         """Draws the can_interact.png icon centered on the given rect, with rotation."""
         if self._can_interact_img is None:
             return
+        # First time interaction is possible -> show the "can interact" controller hint
+        if not GameScene._can_hint_shown and self._has_controller:
+            GameScene._can_hint_shown = True   # shared across all scenes -> only once per game
+            self._can_hint_visible = True
+            self._hint_timer = 0.0
         img = pygame.transform.rotate(self._can_interact_img, self._interact_angle)
         iw, ih = img.get_size()
         surface.blit(img, (rect.centerx - iw // 2, rect.centery - ih // 2))

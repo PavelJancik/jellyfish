@@ -47,7 +47,7 @@ m_frames = load_frames(screen, SPOT_MANTA)
 w_frames = load_frames(screen, SPOT_WHALE)
 f_frames = m_frames
 frames = t_frames
-map_spot = SPOT_FINAL
+map_spot = SPOT_TURTLE
 current_frame = 0
 frame_delay = 5
 counter = 0
@@ -99,8 +99,17 @@ fade = FadeTransition(screen_w, screen_h)
 outro_fade = VideoFade(screen_w, screen_h, speed=300.0)
 outro_fade._done = True  # inactive until the outro starts
 
-# "Press 3 / F to continue" prompt – shown once turtle+manta+whale are done
-_continue_font = pygame.font.SysFont("segoeui,arial,sans-serif", 36, bold=True)
+# "Continue" controller hint (controller-x.png) – shown once turtle+manta+whale are done
+# and only when a controller is connected
+_continue_img = None
+if os.path.isfile("imgs/controller-x.png"):
+    _continue_img = pygame.image.load("imgs/controller-x.png").convert_alpha()
+    _max_h = int(screen_h * 0.15)
+    if _continue_img.get_height() > _max_h:
+        _k = _max_h / _continue_img.get_height()
+        _continue_img = pygame.transform.smoothscale(
+            _continue_img, (max(1, int(_continue_img.get_width() * _k)), _max_h)
+        )
 _continue_alpha: float = 0.0   # blink (0-255)
 _continue_dir:   int   = 1     # blink direction
 
@@ -168,6 +177,13 @@ outro_skip_hold = SkipHoldIndicator(screen_w, screen_h, hold_time=1.0)
 game_completed = False   # True once the final outro video has played (skipped or in full) -> map/esc re-enabled
 # Joystick HUD
 controller_hud = ControllerHUD(screen_w, screen_h, joystick)
+
+def _controller_connected() -> bool:
+    """True only while a controller is really connected (the Joystick object survives unplugging)."""
+    try:
+        return joystick is not None and pygame.joystick.get_count() > 0 and joystick.get_init()
+    except Exception:
+        return False
 
 state = "home"
 while True:
@@ -460,6 +476,7 @@ while True:
     # MAP - Rendering
     elif state == 'map':
         bg_music.play()
+        game_scene_turtle.dismiss_map_hint()   # map opened -> hide the map hint
         map_screen.update(dt)
         map_screen.draw(screen)
 
@@ -533,15 +550,10 @@ while True:
             elif _continue_alpha <= 60.0:
                 _continue_alpha = 60.0
                 _continue_dir = 1
-            _prompt_text = "Press X to continue" if joystick else "Press F to continue"
-            _ps = _continue_font.render(_prompt_text, True, (255, 255, 255))
-            _sh = _continue_font.render(_prompt_text, True, (0, 0, 0))
-            _px = screen_w // 2 - _ps.get_width() // 2
-            _py = screen_h // 3
-            _ps_copy = _ps.copy(); _ps_copy.set_alpha(int(_continue_alpha))
-            _sh_copy = _sh.copy(); _sh_copy.set_alpha(int(_continue_alpha * 0.6))
-            screen.blit(_sh_copy, (_px + 2, _py + 2))
-            screen.blit(_ps_copy, (_px, _py))
+            if _controller_connected() and _continue_img is not None:
+                _img = _continue_img.copy()
+                _img.set_alpha(int(_continue_alpha))
+                screen.blit(_img, (screen_w // 2 - _img.get_width() // 2, screen_h // 3))
 
 
     # Fade overlay (jen ve stavu 'game')
